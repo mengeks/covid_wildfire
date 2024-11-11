@@ -1,7 +1,5 @@
-library(rstudioapi)
-project.dir = dirname(dirname(rstudioapi::getActiveDocumentContext()$path))
-setwd(project.dir)
-source("src/Utilities.R")
+library(here)
+source(here("src/Utilities.R"))
 dff = load.data()
 
 TOTAL.POP = 51344853
@@ -18,8 +16,11 @@ max(dff$date) - min(dff$date) + 1
 ### population coverage
 total.pop = 0
 for (ifips in unique(dff$FIPS)) {
-  total.pop = total.pop + dff$population[dff$FIPS == ifips][1] }
+  total.pop = total.pop + dff$population[dff$FIPS == ifips][1] # total population of the counties  
+}
 print(paste("population coverage", round(total.pop / TOTAL.POP * 100, 3), "%"))
+## population coverage is proportion of population studied / total populaion in all 3 states. 
+## In paper it's 95% so this 190.181% does not seem right... 
 
 ### missing in pm2.5 2020 been replaced by historical value
 # statistics for these 250 replacement 
@@ -29,15 +30,15 @@ summary(dff$pm25_history[is.na(dff$pm25_raw)])
 summary(dff$pm25_raw[dff$wildfire==F])
 
 ### the number and percent of of missing cases 
-sum(is.na(dff$cases))
+sum(is.na(dff$cases)) # 167 (0.65%) county days have missing cases
 sum(is.na(dff$cases)) / dim(dff)[1] * 100 
 
 ### the number and percent of of missing deaths 
-sum(is.na(dff$deaths))
+sum(is.na(dff$deaths))# 167 (0.65%) county days have missing deaths
 sum(is.na(dff$deaths)) / dim(dff)[1] * 100 
 
 ### the number of counties with missing mobility data 
-sum(is.na(dff$relative_change_feb)) / dim(dff)[1]
+sum(is.na(dff$relative_change_feb)) / dim(dff)[1] * 100
 
 ### the 6 counties with missing in mobility
 c6 = unique(dff$FIPS[is.na(dff$relative_change_feb)])

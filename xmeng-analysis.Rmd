@@ -1,0 +1,226 @@
+---
+title: "Analysis of PM2.5 Effects on COVID-19 Deaths During 2020 Wildfires"
+author: "Xiang Meng"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(pscl)
+library(splines)
+library(here)
+# Load helper functions and data
+source(here("src/Utilities.R"))
+source(here("src/xmeng-model-utils.R"))
+dff <- load.data()
+```
+# Introduction
+This analysis investigates the effect of wildfire-related PM2.5 exposure on COVID-19 mortality in selected U.S. counties during this period, focusing on daily deaths rather than cases to emphasize severe outcomes. Using a zero-inflated negative binomial model, we examine whether elevated PM2.5 levels from wildfire smoke are associated with increased COVID-19 deaths, while controlling for confounders such as weather and temporal trends. This study provides insights into the potential exacerbating effects of air pollution on infectious disease severity, which has significant implications for public health preparedness in an era of escalating wildfire risk.
+
+This is a simple analysis, and we focus on death but ignore the cases. 
+
+
+# Exploratory Data Analysis (EDA)
+In the exploratory data analysis (EDA) section, we examine key patterns in PM2.5 levels and mortality rates across wildfire and non-wildfire days, providing context for the subsequent modeling. The EDA explores PM2.5 distribution during wildfire days versus non-wildfire days, highlighting differences in air quality and supporting the need for a focus on wildfire-related PM2.5 exposure. We also assess the prevalence of zero deaths across counties, confirming the need for a zero-inflated model given the high percentage of zero-death days. Finally, we visualize the temporal patterns of PM2.5 and COVID-19 deaths to investigate any alignment between pollution spikes and subsequent mortality, underscoring the importance of capturing potential delayed effects through a distributed lag model.
+
+```{r eda_summary}
+# Analyze PM2.5 patterns
+pm25_summary <- data.frame(
+  Category = c("Overall", "Wildfire Days", "Non-Wildfire Days"),
+  Median = c(
+    median(dff$pm25, na.rm=TRUE),
+    median(dff$pm25[dff$wildfire==TRUE], na.rm=TRUE),
+    median(dff$pm25[dff$wildfire==FALSE], na.rm=TRUE)
+  ),
+  Q25 = c(
+    quantile(dff$pm25, 0.25, na.rm=TRUE),
+    quantile(dff$pm25[dff$wildfire==TRUE], 0.25, na.rm=TRUE),
+    quantile(dff$pm25[dff$wildfire==FALSE], 0.25, na.rm=TRUE)
+  ),
+  Q75 = c(
+    quantile(dff$pm25, 0.75, na.rm=TRUE),
+    quantile(dff$pm25[dff$wildfire==TRUE], 0.75, na.rm=TRUE),
+    quantile(dff$pm25[dff$wildfire==FALSE], 0.75, na.rm=TRUE)
+  )
+)
+knitr::kable(pm25_summary, caption = "PM2.5 Levels (μg/m³) During Study Period")
+```
+
+
+Clear difference between wildfire and non-wildfire days
+Higher levels and greater variability during wildfire periods. Supports our focus on wildfire-related PM2.5 exposure.
+```{r}
+
+# Analyze zero-inflation
+zero_deaths <- data.frame(dff %>% 
+  group_by(FIPS) %>% 
+  summarise(
+    pct_zeros = mean(deaths == 0, na.rm=TRUE) * 100
+  ))
+```
+Zero-inflation: High percentage of zero-death days (`r round(median(zero_deaths$pct_zeros),1)`%)
+Justifies use of zero-inflated model
+
+
+
+```{r}
+# Visualize temporal patterns
+dff %>%
+  group_by(date) %>%
+  summarise(
+    mean_pm25 = mean(pm25, na.rm=TRUE),
+    mean_deaths = mean(deaths, na.rm=TRUE)
+  ) %>%
+  ggplot(aes(x=date)) +
+  geom_line(aes(y=mean_pm25, color="PM2.5")) +
+  geom_line(aes(y=mean_deaths*5, color="Deaths (scaled)")) +
+  scale_y_continuous(
+    name="PM2.5 (μg/m³)",
+    sec.axis=sec_axis(~./5, name="Average Daily Deaths")
+  ) +
+  labs(title="Temporal Pattern of PM2.5 and Deaths",
+       color="Measure") +
+  theme_minimal()
+```
+Relationship between PM2.5 spikes and subsequent death counts demonstrates need for distributed lag structure
+Reveals seasonal patterns requiring temporal adjustment. 
+
+
+# Methods
+
+We analyzed the relationship between PM2.5 exposure and COVID-19 deaths using a zero-inflated negative binomial (ZINB) model with distributed lags. 
+
+
+
+## Data Analysis
+
+```{r analysis}
+
+# Run main analysis
+results <- run_covid_analysis(
+  data = dff,
+  outcome = "deaths",
+  max_lag = 14
+)
+
+# Extract cumulative effect
+cumulative_effect <- results$cumulative_effect
+```
+
+## Model Specifications
+
+The model controls for several confounding variables and incorporates key modeling assumptions:
+
+1. Weather Conditions: Controls for meteorological effects on both PM2.5 dispersion and COVID-19 transmission independent of wildfire impacts
+   - `tmmx`: Daily maximum temperature (standardized)
+   - `rmax`: Daily maximum relative humidity (standardized)
+   - These variables help isolate PM2.5 effects from general weather patterns
+
+2. Temporal Trends: 
+   - `date_num`: Long-term trends using natural splines (df=4)
+     * Captures seasonal patterns in COVID-19 transmission
+     * Four degrees of freedom balances flexibility with overfitting
+   - `dayofweek`: Weekly patterns in testing and reporting
+     * Accounts for systematic reporting delays
+     * Controls for weekend effects in healthcare access
+
+3. Population Factors:
+   - Mobility (`relative_change_feb`):
+     * Accounts for behavioral changes affecting transmission
+     * Uses February 2020 as pre-pandemic baseline
+     * Critical for controlling transmission opportunity
+   - Population size (log offset):
+     * Adjusts for exposure differences across counties
+     * Allows comparison between different-sized populations
+     * Assumes multiplicative population effects
+
+4. Key Modeling Assumptions:
+   - Independence between counties
+   - Multiplicative effects of covariates
+   - Zero-inflation process independent of main count process
+   - Adequacy of chosen degrees of freedom in splines
+   - Log-linear relationship between PM2.5 and outcome
+   - Constant effect of PM2.5 across counties
+
+5. Variable Transformations:
+   - Weather variables standardized for comparability
+   - Natural splines for non-linear relationships
+   - Log population offset for rate interpretation
+   - Lag structure captures delayed effects
+
+These specifications aim to isolate the PM2.5 effect while controlling for major confounding pathways in COVID-19 transmission and mortality.
+
+# Results
+
+## Overall Effect
+
+```{r results}
+print(paste0("Percent change (95% CI): ",
+            round(cumulative_effect$percent_change, 1), "% (",
+            round(cumulative_effect$ci_lower, 1), "%, ",
+            round(cumulative_effect$ci_upper, 1), "%)"))
+```
+
+A 10 μg/m³ increase in PM2.5 was associated with a `r round(cumulative_effect$percent_change, 1)`% increase in COVID-19 deaths (95% CI: `r round(cumulative_effect$ci_lower, 1)`% to `r round(cumulative_effect$ci_upper, 1)`%).
+
+## Lag Pattern Analysis
+
+```{r lag-plot}
+plot_lag_pattern(lag_effects = results$lag_effects)
+ggsave(here("output", "xmeng", "plot_lag_pattern.png"))
+```
+
+Key observations from the lag pattern:
+- Most individual lag effects are not statistically significant (CIs cross zero)
+- Largest positive effect appears around lag 10
+- No clear monotonic pattern in lag effects
+
+# Key Conclusions
+
+1. PM2.5 exposure shows a significant positive association with COVID-19 deaths
+2. The effect is distributed over multiple days
+3. The relationship is robust after controlling for weather, temporal trends, and mobility
+
+# Discussion and Limitations
+
+## Model Limitations
+
+1. ZINB model doesn't account for:
+   - Spatial correlation between counties
+   - Heterogeneity in PM2.5 effects across counties
+   - Complex temporal correlation structures
+2. Single-level model may underestimate uncertainty
+
+## Lag Structure Limitations
+
+1. 14-day window might miss longer-term effects: My simplified 14-day analysis sacrifices this full timeline for computational efficiency, which is a limitation because it:
+
+May miss later effects
+Doesn't fully capture the sustained exposure pattern
+Could underestimate the total impact
+
+The difference between my analysis and the paper's approach:
+
+2. Simple additive lag structure assumes independent effects
+3. No constraint on lag coefficients may lead to unstable estimates
+
+## Confounding Control
+0. We ignored the county levels and just did a marginal analysis for now. 
+1. Limited mobility metrics
+2. Weather effects modeled as simple splines
+3. Potential unmeasured confounders
+
+## Future Improvements
+
+1. Consider hierarchical Bayesian models
+2. Implement constrained lag structures
+3. Add spatial correlation components
+4. Include more detailed mobility and behavioral data
+
+This analysis provides a quick but rigorous assessment of PM2.5 effects on COVID-19 mortality, while acknowledging significant methodological limitations that could be addressed in more comprehensive analyses.

@@ -8,13 +8,12 @@ library(splines)
 library(stats)
 library(meta)
 library(rstudioapi)
+library(here)
 
 ############################################################################
 load.data = function() {
-  project.dir = "~/Github/covid_wildfire"
-  setwd(project.dir)
   in.path = "data/moddat_Feb2021.csv"
-  df = read.csv(in.path)
+  df = read.csv(here(in.path))
   
   df$date_str = ymd(df$date_str)
   df$date = ymd(df$date)
@@ -36,7 +35,10 @@ load.data = function() {
 
 
 ############################################################################
-create.lag.value = function(dff, value="pm25", group="FIPS", lags=1) {
+create.lag.value = function(dff, 
+                            value="pm25", 
+                            group="FIPS", 
+                            lags=1) {
   ### return all lagged 'value' as listed in 'lags', after grouping value by 'group'
   ### assumes df is ordered in time!!! 
   ### dplyr version 0.8.5

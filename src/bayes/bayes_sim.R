@@ -9,11 +9,11 @@ library(smooth)
 library(splines)
 library(reshape2)
 library(ggpubr)
+library(here)
 
 remove(list = ls())
 
-setwd("~/Github/covid_wildfire")
-source("src/bayes/bayes_fun.R")
+source(here("src/bayes/bayes_fun.R"))
 
 load.module("glm")
 

@@ -1,15 +1,28 @@
-pm_model <- function(dff, df.pm = 7, df.date = 6, df.tmmx = 2, df.rmax = 2, lags = 0:28, model = c("Constrained", "Unconstrained"),
-                     mobility = NA, cause = "cases", smooth = "ns", group = "FIPS", offset = "population", 
-                     control = zeroinfl.control(EM = FALSE), fullDist = FALSE) {
+pm_model <- function(dff, 
+                     df.pm = 7, 
+                     df.date = 6, 
+                     df.tmmx = 2, # Time max?
+                     df.rmax = 2, 
+                     lags = 0:28, # why is lag a vector but not a 
+                     model = c("Constrained", "Unconstrained"),
+                     mobility = NA, 
+                     cause = "cases", 
+                     smooth = "ns", 
+                     group = "FIPS", 
+                     offset = "population", 
+                     control = zeroinfl.control(EM = FALSE), 
+                     fullDist = FALSE) {
   
   pollutants.name = "pm"
   
-  if (model == "Constrained") {
-    
+  if (model == "Constrained") { # constrained means having natural splines multiplied by X.l, but unconstrained means just logs (no natural splines)?
+    # create.lag.value: Create lagged covariates?
     X.l <- create.lag.value(dff, value = "pm25", group = group, lags = lags)
-    U <- matrix(ns(c(lags), df = df.pm, intercept = TRUE), nrow = length(lags), ncol = df.pm) # natural spline basis matrix
-    lagpm <- as.matrix(X.l) %*% as.matrix(U)
-    
+    U <- matrix(ns(c(lags), df = df.pm, intercept = TRUE), 
+                nrow = length(lags),
+                ncol = df.pm
+              ) # natural spline basis matrix of the lagged covariates?
+    lagpm <- as.matrix(X.l) %*% as.matrix(U) # 
   } else
     lagpm <- as.matrix(create.lag.value(dff=dff, value="pm25", group=group, lags=lags))
 
@@ -37,6 +50,8 @@ pm_model <- function(dff, df.pm = 7, df.date = 6, df.tmmx = 2, df.rmax = 2, lags
   
   ### add cause
   modelFormula = as.formula(paste(cause, paste(rhs, collapse = "")))
+  
+  print(modelFormula)
   
   call = substitute(zeroinfl(modelFormula, dist = "negbin", link = "logit", data = dff, 
                              offset = log.pop, control = control, na.action = na.exclude),
