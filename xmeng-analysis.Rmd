@@ -23,8 +23,6 @@ dff <- load.data()
 # Introduction
 This analysis investigates the effect of wildfire-related PM2.5 exposure on COVID-19 mortality in selected U.S. counties during this period, focusing on daily deaths rather than cases to emphasize severe outcomes. Using a zero-inflated negative binomial model, we examine whether elevated PM2.5 levels from wildfire smoke are associated with increased COVID-19 deaths, while controlling for confounders such as weather and temporal trends. This study provides insights into the potential exacerbating effects of air pollution on infectious disease severity, which has significant implications for public health preparedness in an era of escalating wildfire risk.
 
-This is a simple analysis, and we focus on death but ignore the cases. 
-
 
 # Exploratory Data Analysis (EDA)
 In the exploratory data analysis (EDA) section, we examine key patterns in PM2.5 levels and mortality rates across wildfire and non-wildfire days, providing context for the subsequent modeling. The EDA explores PM2.5 distribution during wildfire days versus non-wildfire days, highlighting differences in air quality and supporting the need for a focus on wildfire-related PM2.5 exposure. We also assess the prevalence of zero deaths across counties, confirming the need for a zero-inflated model given the high percentage of zero-death days. Finally, we visualize the temporal patterns of PM2.5 and COVID-19 deaths to investigate any alignment between pollution spikes and subsequent mortality, underscoring the importance of capturing potential delayed effects through a distributed lag model.
@@ -88,15 +86,11 @@ dff %>%
        color="Measure") +
   theme_minimal()
 ```
-Relationship between PM2.5 spikes and subsequent death counts demonstrates need for distributed lag structure
-Reveals seasonal patterns requiring temporal adjustment. 
 
 
 # Methods
 
 We analyzed the relationship between PM2.5 exposure and COVID-19 deaths using a zero-inflated negative binomial (ZINB) model with distributed lags. 
-
-
 
 ## Data Analysis
 
@@ -133,7 +127,6 @@ The model controls for several confounding variables and incorporates key modeli
 3. Population Factors:
    - Mobility (`relative_change_feb`):
      * Accounts for behavioral changes affecting transmission
-     * Uses February 2020 as pre-pandemic baseline
      * Critical for controlling transmission opportunity
    - Population size (log offset):
      * Adjusts for exposure differences across counties
@@ -183,9 +176,36 @@ Key observations from the lag pattern:
 
 # Key Conclusions
 
-1. PM2.5 exposure shows a significant positive association with COVID-19 deaths
-2. The effect is distributed over multiple days
-3. The relationship is robust after controlling for weather, temporal trends, and mobility
+## 1. Primary Findings
+- PM2.5 exposure during wildfires significantly increases COVID-19 mortality
+- A 10 μg/m³ sustained increase in PM2.5 associated with 3.7% increase in deaths (95% CI: 1.4%, 6.0%)
+
+## 2. Complex Temporal Relationship
+The relationship between PM2.5 exposure and COVID-19 deaths shows a nuanced temporal pattern:
+
+### Statistical Evidence
+- Individual lag effects lack statistical significance
+- Yet cumulative effect across 14 days is significant
+- This pattern emerges from:
+ * Combining multiple weak but consistent signals
+ * Shared covariance structure across lags
+ * Increased statistical power in cumulative measurement
+
+### Biological Mechanism
+This statistical pattern aligns with COVID-19's disease progression:
+- Initial PM2.5 exposure may increase susceptibility
+- Disease development occurs over multiple days
+- No single exposure day dominates the outcome
+
+### Exposure Implications
+- Short-term PM2.5 spikes may be less concerning
+- Sustained exposure during wildfire events poses greater risk
+- Suggests importance of cumulative exposure reduction strategies
+
+## 3. Public Health Implications
+- Need to consider cumulative exposure over outbreak periods
+- Single-day air quality measures may understate risk
+- Particular concern during extended wildfire events
 
 # Discussion and Limitations
 
@@ -211,16 +231,14 @@ The difference between my analysis and the paper's approach:
 3. No constraint on lag coefficients may lead to unstable estimates
 
 ## Confounding Control
-0. We ignored the county levels and just did a marginal analysis for now. 
-1. Limited mobility metrics
-2. Weather effects modeled as simple splines
-3. Potential unmeasured confounders
+1. Ignored the county levels but just did a marginal analysis for now. 
+2. Limited mobility metrics
+3. Weather effects modeled as simple splines
+4. Potential unmeasured confounders
 
 ## Future Improvements
-
-1. Consider hierarchical Bayesian models
-2. Implement constrained lag structures
-3. Add spatial correlation components
-4. Include more detailed mobility and behavioral data
+1. Implement constrained lag structures
+2. Add spatial correlation components
+3. Include more detailed mobility and behavioral data
 
 This analysis provides a quick but rigorous assessment of PM2.5 effects on COVID-19 mortality, while acknowledging significant methodological limitations that could be addressed in more comprehensive analyses.
